@@ -80,8 +80,8 @@
           (= k "class") (doseq [cls (split v #" ")] (.addClass e cls))
           (= k "css")   (.css e (clj->js v))
           :else         (cond
-                          (= false v) (.removeAttr e k)
                           (= true v)  (.attr e k k)
+                          (= false v) (.removeAttr e k)
                           :else       (.attr e k (str v))))))
     (when (seq @dos)
       (with-timeout 0
@@ -99,10 +99,14 @@
     #(.appendChild %1 %2)
     #(try (.appendChild %1 %2) (catch js/Error _))))
 
-(defn add-children! [this kids]
-  (let [node #(cond (string? %) ($text %) (node? %) %)]
-    (doseq [x (keep node (unsplice kids))] (append-child this x))
-    this))
+(defn add-children! [this [child-cell & _ :as kids]]
+  (let [replace-kids! #(doto (js/jQuery this) (.empty) (.append %))]
+    (if (cell? child-cell)
+      (do (replace-kids! @child-cell)
+          (add-watch child-cell (gensym) #(replace-kids! %4)))
+      (let [node #(cond (string? %) ($text %) (node? %) %)]
+        (doseq [x (keep node (unsplice kids))] (append-child this x)))))
+  this)
 
 (defn on-append! [this f]
   (set! (.-hoplonIFn this) f))
@@ -360,6 +364,10 @@
 (defmethod do! :text
   [elem _ v]
   (.text (js/jQuery elem) (str v)))
+
+(defmethod do! :html
+  [elem _ v]
+  (.html (js/jQuery elem) v))
 
 (defmethod do! :scroll-to
   [elem _ v]
